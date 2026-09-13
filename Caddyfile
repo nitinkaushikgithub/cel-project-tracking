@@ -1,0 +1,16 @@
+# Plain HTTP placeholder, internal network only.
+#
+# CLAUDE.md §9.10 (source doc §8.1, question 11) leaves the TLS approach
+# open: a certificate from CEL's internal CA if one exists, a self-signed
+# certificate installed on staff machines, or plain HTTP if CEL's security
+# policy permits it on the internal network. Do not treat this file as
+# having decided that question — swap it for a `tls` directive once CEL
+# answers.
+
+{
+	auto_https off
+}
+
+:80 {
+	reverse_proxy app:3000
+}

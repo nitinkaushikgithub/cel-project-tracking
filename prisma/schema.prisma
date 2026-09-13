@@ -1,0 +1,185 @@
+// CEL Project Monitoring System — database schema
+//
+// This mirrors CLAUDE.md §4 (Data model) exactly. Field names are camelCase
+// in the Prisma client / TypeScript code, mapped to snake_case columns in
+// Postgres via @map / @@map — a boring, common convention, not a scope
+// decision.
+//
+// Deliberately NOT included (see CLAUDE.md §9 — open, not yet decided by
+// the customer):
+//   - PO / sales columns (PO number, PO value, quantity supplied, sales
+//     achieved) — question 1.
+//   - Any P-series/R-series form split beyond Project.type — question 2.
+//   - A risk register (likelihood/impact) — question 4.
+//
+// NOTE for next iteration: CLAUDE.md §5 requires alert thresholds to be
+// "configurable by an administrator in a settings table, not hardcoded
+// constants," but §4's data model (which this file follows literally) does
+// not list that table. It isn't one of the open §9 questions — it just
+// needs a schema before the alert engine (build order step 4). Flagged for
+// review rather than invented here.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PROJECT_MANAGER
+  MEMBER
+
+  @@map("role")
+}
+
+enum ProjectType {
+  PURCHASE_ORDER
+  RND
+
+  @@map("project_type")
+}
+
+// Derived from start_date/end_date, not chosen by the user — see CLAUDE.md
+// §5 "Classification" and the source doc §3.2 ("The user does not set them").
+enum DurationClass {
+  WEEKLY
+  FORTNIGHTLY
+  MONTHLY
+
+  @@map("duration_class")
+}
+
+enum ActivityStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+
+  @@map("activity_status")
+}
+
+enum AlertRule {
+  HALF_TIME
+  THREE_QUARTER
+  TWO_DAYS_BEFORE
+  OVERDUE
+
+  @@map("alert_rule")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  fullName     String   @map("full_name")
+  loginName    String   @unique @map("login_name")
+  passwordHash String   @map("password_hash")
+  role         Role
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  managedProjects    Project[]        @relation("ProjectManager")
+  assignedActivities Activity[]       @relation("ActivityAssignee")
+  alertDismissals    AlertDismissal[]
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+model Project {
+  id        String      @id @default(cuid())
+  code      String      @unique
+  name      String
+  type      ProjectType
+  managerId String      @map("manager_id")
+  manager   User        @relation("ProjectManager", fields: [managerId], references: [id])
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  activities Activity[]
+
+  @@index([managerId])
+  @@map("projects")
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id])
+  name      String
+
+  // Day-granular, not timestamps — CLAUDE.md §10.
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+
+  // Derived and stored, recomputed whenever start/end change — CLAUDE.md §5.
+  durationClass DurationClass @map("duration_class")
+
+  assignedToId String         @map("assigned_to_id")
+  assignedTo   User           @relation("ActivityAssignee", fields: [assignedToId], references: [id])
+  status       ActivityStatus @default(NOT_STARTED)
+
+  target String
+  actual String?
+
+  reasonForDelay      String? @map("reason_for_delay")
+  correctiveAction    String? @map("corrective_action")
+  hodSupportRequested Boolean @default(false) @map("hod_support_requested")
+  hodRemark           String? @map("hod_remark")
+
+  alerts Alert[]
+
+  @@index([projectId])
+  @@index([assignedToId])
+  @@map("activities")
+}
+
+model Alert {
+  id            String    @id @default(cuid())
+  activityId    String    @map("activity_id")
+  activity      Activity  @relation(fields: [activityId], references: [id])
+  rule          AlertRule
+  scheduledFor  DateTime  @map("scheduled_for") @db.Date
+  raisedAt      DateTime  @default(now()) @map("raised_at")
+  emailSentAt   DateTime? @map("email_sent_at")
+
+  dismissals AlertDismissal[]
+
+  // Load bearing: this is what makes the hourly job idempotent across
+  // restarts and retries — CLAUDE.md §5 "The hourly check". The row must be
+  // written before the email is sent, never after.
+  @@unique([activityId, rule, scheduledFor])
+  @@index([activityId])
+  @@map("alerts")
+}
+
+model AlertDismissal {
+  alertId     String   @map("alert_id")
+  alert       Alert    @relation(fields: [alertId], references: [id])
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id])
+  dismissedAt DateTime @default(now()) @map("dismissed_at")
+
+  // The beacon popup is shown to all users, so dismissal is per-user — one
+  // person closing it must not hide it from anyone else. Do not collapse
+  // this into a boolean on Alert. See CLAUDE.md §4 note.
+  @@id([alertId, userId])
+  @@index([userId])
+  @@map("alert_dismissals")
+}
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  userId   String   @map("user_id")
+  user     User     @relation(fields: [userId], references: [id])
+  entity   String
+  entityId String   @map("entity_id")
+  action   String
+  changes  Json
+  at       DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
