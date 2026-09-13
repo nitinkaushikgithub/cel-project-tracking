@@ -12,12 +12,15 @@
 //   - Any P-series/R-series form split beyond Project.type — question 2.
 //   - A risk register (likelihood/impact) — question 4.
 //
-// NOTE for next iteration: CLAUDE.md §5 requires alert thresholds to be
-// "configurable by an administrator in a settings table, not hardcoded
-// constants," but §4's data model (which this file follows literally) does
-// not list that table. It isn't one of the open §9 questions — it just
-// needs a schema before the alert engine (build order step 4). Flagged for
-// review rather than invented here.
+// Phase 1 additions on top of the literal §4 model, both reviewed and
+// approved before implementation (neither is a §9 open question):
+//   - User.email — a plain contact field, added at the user's request.
+//     Not used for authentication; hard constraint #1 (credentials-only,
+//     no email auth) still holds.
+//   - AlertRuleSetting — §5 requires alert thresholds to be admin-
+//     configurable "in a settings table, not hardcoded constants," but §4's
+//     literal data model doesn't list one. This is that table. See its
+//     model comment below and docs/ARCHITECTURE.md for the full rationale.
 
 generator client {
   provider = "prisma-client-js"
@@ -75,6 +78,10 @@ model User {
   id           String   @id @default(cuid())
   fullName     String   @map("full_name")
   loginName    String   @unique @map("login_name")
+  // Contact field only — never used to log in or to reset a password (hard
+  // constraint #1: an administrator resets passwords directly, no email
+  // flow of any kind). Optional because not every user has one recorded.
+  email        String?  @unique
   passwordHash String   @map("password_hash")
   role         Role
   isActive     Boolean  @default(true) @map("is_active")
@@ -182,4 +189,36 @@ model AuditLog {
   @@index([userId])
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+// Admin-configurable alert thresholds — CLAUDE.md §5: "These thresholds
+// must be configurable by an administrator in a settings table, not
+// hardcoded constants." One row per (durationClass, rule) combination that
+// applies to that duration class. Exactly one of fractionOfDuration /
+// offsetDaysBeforeEnd is set, matching which kind of point `rule` is:
+//   - HALF_TIME, THREE_QUARTER   -> fractionOfDuration (e.g. 0.50, 0.75),
+//                                   point = startDate + floor(fraction * durationDays)
+//   - TWO_DAYS_BEFORE            -> offsetDaysBeforeEnd (e.g. 2),
+//                                   point = endDate - offsetDaysBeforeEnd
+// `enabled` lets an admin turn a point off per duration class without
+// deleting the row (so its configured value is remembered if re-enabled).
+//
+// OVERDUE is deliberately NOT a row here. CLAUDE.md §5 introduces it with
+// "Additionally: OVERDUE fires when end_date has passed and status is not
+// COMPLETED" — separate wording from "these thresholds" (which covers only
+// HALF_TIME/THREE_QUARTER/TWO_DAYS_BEFORE), and OVERDUE has no duration-
+// class-dependent timing to configure: it isn't a point on the calendar
+// computed from a fraction or offset, it's a standing status check. Keep it
+// as always-on logic in the alert engine, not a row a duration class could
+// individually disable.
+model AlertRuleSetting {
+  id                  String        @id @default(cuid())
+  durationClass       DurationClass @map("duration_class")
+  rule                AlertRule     @map("rule")
+  enabled             Boolean       @default(true)
+  fractionOfDuration  Float?        @map("fraction_of_duration")
+  offsetDaysBeforeEnd Int?          @map("offset_days_before_end")
+
+  @@unique([durationClass, rule])
+  @@map("alert_rule_settings")
 }
