@@ -1,9 +1,13 @@
 # Install runbook
 
 Written as the system is built (CLAUDE.md §10 convention), not at the end.
-This entry covers build-order step 1 only: Docker Compose + Prisma schema.
-Nothing here logs in, creates a project, or raises an alert yet — that's
-steps 2 onward.
+
+**Status: Phase 1 complete** (per the user's own phasing — UI + backend
+integration; deployment hardening is Phase 2, email sending is Phase 3).
+That's CLAUDE.md §8 build-order steps 2–5, 7, 8: auth, users/roles,
+projects/activities CRUD, the alert engine, the beacon popup/history/
+dismissals, the dashboard/RAG rollup, and the audit log. Alert emails are
+stubbed (logged, not sent) — see `src/lib/email.ts`.
 
 ## Prerequisites
 
@@ -37,23 +41,37 @@ Brings up `postgres`, `app`, and `caddy`. Caddy listens on port 80 and
 reverse-proxies to the app. The app itself is not published directly —
 only reachable through Caddy, on the internal network (CLAUDE.md §3.2).
 
-Currently the app serves a single placeholder page — no login, no data
-entry. That's expected until build-order step 2 (CLAUDE.md §8).
+Every container start also runs `npx prisma db seed`
+(`prisma/seed.ts`, upsert-based — safe to repeat) after migrations, so the
+app is demonstrable immediately: one admin user and the sample P101
+project with two activities, per CLAUDE.md §10.
+
+**Seeded admin login** — change the password after first login (there is
+no self-service reset; an admin resets it from `/users`, CLAUDE.md §3.1):
+
+| Login name | Password |
+|---|---|
+| `admin` | `ChangeMe123!` |
 
 ## Known gaps at this stage
 
 - **TLS is undecided.** Caddy currently serves plain HTTP. See the
   comments in `Caddyfile` and `docker-compose.yml` — this is CLAUDE.md
   §9.10 (open question 10), not a decision made here.
-- **No settings table yet** for the alert thresholds CLAUDE.md §5 requires
-  to be admin-configurable. `prisma/schema.prisma` follows §4's data model
-  literally, which doesn't list one. Needs a decision before build-order
-  step 4 (the alert engine) — flagged, not invented.
-- **No seed script yet.** CLAUDE.md §10 wants one admin user + the sample
-  P101 project seeded automatically, but that needs password hashing and
-  user creation logic that doesn't exist until step 2.
-- `package-lock.json` isn't committed — this session had no `npm`
-  available to generate one. Run `npm install` locally once to create it
-  (the Dockerfile's `deps` stage will pick it up automatically), then
+- **Email isn't actually sent.** `src/lib/email.ts` logs what it would
+  send; `Alert.emailSentAt` stays `null`. Real Nodemailer/SMTP wiring is
+  Phase 3 (CLAUDE.md build-order step 6).
+- **No deployment hardening yet** — backup script, restore procedure,
+  administrator guide (CLAUDE.md §8.3 / build-order step 8's remaining
+  half). That's Phase 2.
+- `next-auth` is pinned to a beta version (`5.0.0-beta.25`) from memory —
+  no `npm` has been available anywhere in this project yet to confirm it
+  still resolves; check for a newer stable release when `npm install`
+  finally runs somewhere with network access.
+- `package-lock.json` isn't committed — no `npm` has been available in any
+  session so far to generate one. Run `npm install` locally once to create
+  it (the Dockerfile's `deps` stage will pick it up automatically), then
   consider switching that stage from `npm install` to `npm ci` for
-  reproducible builds.
+  reproducible builds. This is also the point at which everything written
+  so far gets its first real compiler check — nothing in this repo has
+  been built or run by any of the people/agents who wrote it.
