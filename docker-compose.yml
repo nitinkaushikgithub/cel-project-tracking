@@ -7,6 +7,14 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Auth.js v5 refuses to start in production without this (session/JWT
+      # signing key) — generate one with `openssl rand -base64 32` and put
+      # it in .env, never commit a real value. See .env.example.
+      AUTH_SECRET: ${AUTH_SECRET}
+      # Reverse-proxied behind Caddy on an internal hostname that isn't
+      # fixed yet (CLAUDE.md §9.10 — DNS name still open). Without this,
+      # Auth.js v5 rejects requests whose Host header it doesn't recognize.
+      AUTH_TRUST_HOST: "true"
     depends_on:
       postgres:
         condition: service_healthy
