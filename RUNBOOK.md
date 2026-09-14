@@ -6,17 +6,45 @@ want to know *what* this is before *how to run it*.
 
 ## 1. Prerequisites
 
+- **Git**. Any reasonably current version.
 - **Docker** with Compose v2 (`docker compose`, not the older
-  `docker-compose`). That's the only thing you need installed — Node,
-  Postgres, etc. all run inside containers.
+  `docker-compose`). That's the only *other* thing you need installed —
+  Node, Postgres, etc. all run inside containers, nothing to set up
+  natively.
 - Network access to pull `node:20-alpine`, `postgres:16-alpine`, and
-  `caddy:2-alpine` the first time.
+  `caddy:2-alpine` the first time (Docker pulls these automatically on
+  first build/run).
+- Read access to the repo: **https://github.com/nitinkaushikgithub/cel-project-tracking**
+  (ask the repo owner for access if you don't have it yet — it may be
+  private, or you may need to be added as a collaborator).
 
 ## 2. Get the code
 
+**Option A — HTTPS (works everywhere, no SSH key needed):**
 ```
-git clone <this repo's URL>
+git clone https://github.com/nitinkaushikgithub/cel-project-tracking.git
 cd cel-project-tracking
+```
+If the repo requires authentication and you don't already have Git
+credentials configured, either:
+- install the [GitHub CLI](https://cli.github.com) and run `gh auth login`
+  once (handles credentials for you from then on — this is what was used
+  to originally push this repo), or
+- generate a [Personal Access Token](https://github.com/settings/tokens)
+  and use it as the password when Git prompts for one.
+
+**Option B — SSH (if you already have an SSH key added to your GitHub
+account):**
+```
+git clone git@github.com:nitinkaushikgithub/cel-project-tracking.git
+cd cel-project-tracking
+```
+
+Either way, you should now be on the `main` branch with everything in this
+runbook already in place — confirm with:
+```
+git status
+git log --oneline -5
 ```
 
 ## 3. Configure environment
