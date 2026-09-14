@@ -107,15 +107,27 @@ itself isn't published directly).
 
 ## 5. Log in
 
-| Login name | Password |
-|---|---|
-| `admin` | `ChangeMe123!` |
+There's no fixed default password — the seed script generates a random
+one the first time it creates the admin account, and prints it once:
 
-**Change this password immediately after first login** (`/users` →
-find `admin` → *Reset password*). There's no self-service reset by design
-(CLAUDE.md hard constraint #1) — only another admin can reset a password,
-so don't lock yourself out by forgetting the new one before creating a
-second admin account.
+```
+docker compose logs app | grep -A3 "First-run admin"
+```
+
+Login name is `admin` unless you set `SEED_ADMIN_LOGIN_NAME` in `.env`.
+That log line only ever appears once, on the very first successful start
+— copy the password down before it scrolls out of your terminal history.
+(If you missed it: there's no recovery except resetting the database —
+see the troubleshooting table below — since it's a real bcrypt hash from
+that point on, not recoverable another way. If you specifically need a
+known password up front instead, e.g. for a scripted setup, set
+`SEED_ADMIN_PASSWORD` in `.env` before the first `docker compose up`.)
+
+**Change this password after first login anyway** (`/users` → find the
+admin account → *Reset password*) — there's no self-service reset by
+design (CLAUDE.md hard constraint #1), only another admin can reset a
+password, so don't lock yourself out by forgetting the new one before
+creating a second admin account.
 
 ## 6. Verify it's actually working
 

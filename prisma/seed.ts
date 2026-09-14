@@ -8,26 +8,36 @@
 // nothing in this repo currently wires up path-alias resolution for that
 // runner (package.json has no "prisma.seed" entry yet — package.json is
 // Architect-owned, flagged in the PR report rather than edited here).
+import { randomBytes } from "node:crypto";
 import { PrismaClient, DurationClass, AlertRule, ProjectType } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
 import { classifyDuration } from "../src/lib/alerts";
 
 const prisma = new PrismaClient();
 
-// Boring, documented defaults — CLAUDE.md hard constraint #1: an
-// administrator sets/resets passwords directly, there is no self-service
-// flow, so a known seeded password is expected and safe to state in the
-// runbook (change it after first login).
-const SEED_ADMIN_LOGIN_NAME = "admin";
-const SEED_ADMIN_PASSWORD = "ChangeMe123!";
+// No hardcoded password here on purpose — this repo is public, and a
+// fixed string in source (however clearly marked "change me") becomes
+// public knowledge the moment it's pushed. CLAUDE.md hard constraint #1
+// ("an administrator sets passwords directly, no self-service flow")
+// still holds: this is that one manual step, just resolved at seed time
+// instead of hardcoded. Override with SEED_ADMIN_PASSWORD in .env if you
+// want a specific one (e.g. for scripted/CI setups); otherwise a random
+// one is generated and printed once, only on first creation.
+const SEED_ADMIN_LOGIN_NAME = process.env.SEED_ADMIN_LOGIN_NAME ?? "admin";
 
 async function seedAdminUser() {
-  const passwordHash = await hashPassword(SEED_ADMIN_PASSWORD);
+  const existing = await prisma.user.findUnique({ where: { loginName: SEED_ADMIN_LOGIN_NAME } });
+  if (existing) {
+    // Never touch the password of an admin that already exists — this
+    // seed runs on every container start (see docker-entrypoint.sh).
+    return existing;
+  }
 
-  const admin = await prisma.user.upsert({
-    where: { loginName: SEED_ADMIN_LOGIN_NAME },
-    update: {},
-    create: {
+  const password = process.env.SEED_ADMIN_PASSWORD ?? randomBytes(9).toString("base64url");
+  const passwordHash = await hashPassword(password);
+
+  const admin = await prisma.user.create({
+    data: {
       fullName: "System Administrator",
       loginName: SEED_ADMIN_LOGIN_NAME,
       passwordHash,
@@ -35,6 +45,13 @@ async function seedAdminUser() {
       isActive: true,
     },
   });
+
+  console.log("");
+  console.log("=== First-run admin account created ===");
+  console.log(`Login name: ${SEED_ADMIN_LOGIN_NAME}`);
+  console.log(`Password:   ${password}`);
+  console.log("Save this now — it will not be shown again. Change it after first login.");
+  console.log("");
 
   return admin;
 }

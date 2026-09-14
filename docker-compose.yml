@@ -27,6 +27,10 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
       APP_BASE_URL: ${APP_BASE_URL}
+      # Optional — see .env.example. Unset means the seed script generates
+      # a random admin password on first creation and logs it once.
+      SEED_ADMIN_LOGIN_NAME: ${SEED_ADMIN_LOGIN_NAME}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
