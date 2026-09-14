@@ -56,6 +56,13 @@ export function BeaconPopup() {
   }
 
   async function handleClose() {
+    // Re-guarded here on purpose: `current` is narrowed above at the
+    // component's top level, but TypeScript doesn't carry that narrowing
+    // into a nested function declaration's closure (a `const` capture
+    // inside a plain `function`, unlike an arrow function used inline,
+    // isn't re-checked by control-flow analysis) — this is a real (if
+    // effectively unreachable) guard, not just a type-checker workaround.
+    if (!current) return;
     setDismissing(true);
     try {
       await dismissAlert(current.id);

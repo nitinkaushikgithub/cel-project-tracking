@@ -81,7 +81,15 @@ function AlertRuleRow({ row }: { row: AlertRuleSetting }) {
 
   return (
     <form
-      action={updateAlertRuleSetting.bind(null, row.id, undefined)}
+      // A plain <form action> (no useActionState here — see the file-level
+      // note on why) must return void, but updateAlertRuleSetting returns
+      // the validation error string. Wrap it in an inline server action
+      // (same pattern as the logout button in layout.tsx) that discards the
+      // result rather than binding the action directly.
+      action={async (formData: FormData) => {
+        "use server";
+        await updateAlertRuleSetting(row.id, undefined, formData);
+      }}
       style={{
         display: "flex",
         alignItems: "center",

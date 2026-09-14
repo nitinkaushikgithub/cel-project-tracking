@@ -5,9 +5,20 @@
 // - Redirect to /login if not logged in (except /login and /api/auth/**).
 // - Redirect logged-in users away from /login.
 // - Redirect non-admins away from /users/** and /admin/**.
+//
+// Deliberately builds its own NextAuth instance from auth.config.ts alone
+// rather than importing `auth` from @/lib/auth: Next.js always runs
+// middleware in the Edge runtime (true for this self-hosted Docker
+// container too, not just Vercel), and the full auth.ts pulls in Prisma
+// Client + bcryptjs — neither Edge-compatible. `next build` surfaced this
+// as warnings, not a build failure, which is exactly the kind of thing
+// that then breaks at request time; see auth.config.ts's comment.
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { auth } from "@/lib/auth";
+import { authConfig } from "@/lib/auth.config";
+
+const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

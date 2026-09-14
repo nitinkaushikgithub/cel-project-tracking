@@ -5,14 +5,18 @@
 // src/app/users/actions.ts.
 //
 // Login is loginName + password only (docs/ARCHITECTURE.md §3).
+//
+// This is the full (Node runtime) instance — used everywhere except
+// src/middleware.ts, which builds its own lightweight instance from
+// auth.config.ts alone (see that file's comment for why).
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { authConfig } from "@/lib/auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
+  ...authConfig,
   providers: [
     Credentials({
       name: "Credentials",
@@ -47,20 +51,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.loginName = user.loginName;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      session.user.id = token.id;
-      session.user.role = token.role;
-      session.user.loginName = token.loginName;
-      return session;
-    },
-  },
 });

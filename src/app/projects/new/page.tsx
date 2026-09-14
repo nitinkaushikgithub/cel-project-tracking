@@ -3,7 +3,7 @@
 import { useEffect, useState, useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { createProject } from "./actions";
+import { createProject } from "../actions";
 // See the ownership note in src/app/users/page.tsx — listUsers() is assumed,
 // not part of ARCHITECTURE.md §8's contract. Reused here for the admin's
 // "assign a manager" dropdown, since no other query gives us that list.

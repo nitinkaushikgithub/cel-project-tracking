@@ -5,13 +5,17 @@
 # `docker-entrypoint.sh` can run `prisma migrate deploy` at container start
 # without reaching out to the network — this box has no internet access
 # once deployed (CLAUDE.md §3.2).
+#
+# package-lock.json is now committed (generated and verified against a real
+# install — see RUNBOOK.md) so `npm ci` is safe: an exact, reproducible
+# install from the lockfile rather than a fresh resolve.
 
 FROM node:20-alpine AS base
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
