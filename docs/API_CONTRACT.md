@@ -86,6 +86,13 @@ Auth: `requireRole("ADMIN")`. Fields: `fullName`, `loginName`, `email`
 (optional), `password` (min 8 chars), `role` (`ADMIN` | `PROJECT_MANAGER` |
 `MEMBER`). Rejects a duplicate `loginName`. Audit: `User` / `create`.
 
+### `updateUser(userId, prevState, formData): Promise<string | undefined>`
+Auth: `requireRole("ADMIN")`. Fields: `fullName`, `email` (optional),
+`role`. `loginName` is deliberately not editable here (it's the login
+credential itself) — password changes go through `resetPassword` below,
+not this. Rejects a duplicate `email` (unique when set). Audit: `User` /
+`update`.
+
 ### `resetPassword(userId, prevState, formData): Promise<string | undefined>`
 Auth: `requireRole("ADMIN")`. Fields: `password` (min 8 chars). No
 self-service path exists anywhere — this is the only way a password
@@ -251,6 +258,7 @@ it.
 | Action | `entity` | `action` value |
 |---|---|---|
 | Create user | `User` | `create` |
+| Update user (name/email/role) | `User` | `update` |
 | Reset password | `User` | `reset_password` |
 | Toggle user active | `User` | `toggle_active` |
 | Create project | `Project` | `create` |

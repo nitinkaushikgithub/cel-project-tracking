@@ -55,7 +55,9 @@ any cloud service.
 - **Login** — login name + password only. No signup, no verification email,
   no reset links. An administrator creates every user and resets passwords
   directly (CLAUDE.md hard constraint #1).
-- **Users** (admin) — create users, reset passwords, activate/deactivate.
+- **Users** (admin) — create users, edit name/email/role, reset passwords,
+  activate/deactivate. Login name isn't editable once set (it's the login
+  credential itself).
 - **Projects & activities** (admin / PM own projects) — a project has a code,
   name, type (Purchase Order or R&D — fixed, matches the source workbook),
   and a manager. Activities have a start date, end date, assignee, target,

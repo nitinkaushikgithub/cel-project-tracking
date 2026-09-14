@@ -21,3 +21,12 @@ export const createUserSchema = z.object({
 export const resetPasswordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
+
+// loginName is deliberately not editable here — it's the login credential
+// itself; changing it is a bigger, separate decision than this form is
+// for. Password changes go through resetPasswordSchema/resetPassword.
+export const updateUserSchema = z.object({
+  fullName: z.string().min(1, "Full name is required.").max(200),
+  email: z.string().email("Enter a valid email address.").optional(),
+  role: z.nativeEnum(Role),
+});

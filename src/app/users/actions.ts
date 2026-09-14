@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, requireUser } from "@/lib/rbac";
 import { hashPassword } from "@/lib/password";
 import { writeAuditLog } from "@/lib/audit";
-import { createUserSchema, resetPasswordSchema } from "@/lib/validation/user";
+import { createUserSchema, resetPasswordSchema, updateUserSchema } from "@/lib/validation/user";
+import { Prisma } from "@prisma/client";
 
 // All admin-only (docs/ARCHITECTURE.md §3 role matrix: only Admin creates
 // or resets users).
@@ -91,6 +92,56 @@ export async function createUser(
     entityId: user.id,
     action: "create",
     changes: { fullName, loginName, email: email ?? null, role },
+  });
+
+  revalidatePath("/users");
+  return undefined;
+}
+
+export async function updateUser(
+  userId: string,
+  prevState: string | undefined,
+  formData: FormData,
+): Promise<string | undefined> {
+  const actor = await requireRole("ADMIN");
+
+  const parsed = updateUserSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email") || undefined,
+    role: formData.get("role"),
+  });
+
+  if (!parsed.success) {
+    return parsed.error.issues[0]?.message ?? "Invalid input.";
+  }
+
+  const existing = await prisma.user.findUnique({ where: { id: userId } });
+  if (!existing) {
+    return "User not found.";
+  }
+
+  const { fullName, email, role } = parsed.data;
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { fullName, email: email ?? null, role },
+    });
+  } catch (err) {
+    // email has a unique constraint (schema note: contact-only, but still
+    // unique when set) — a duplicate shows up here as P2002.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return "That email address is already in use by another user.";
+    }
+    throw err;
+  }
+
+  await writeAuditLog({
+    userId: actor.id,
+    entity: "User",
+    entityId: userId,
+    action: "update",
+    changes: { fullName, email: email ?? null, role },
   });
 
   revalidatePath("/users");

@@ -110,6 +110,7 @@ export default function UsersPage() {
                 <tr>
                   <th>Name</th>
                   <th>Login name</th>
+                  <th>Email</th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -120,6 +121,7 @@ export default function UsersPage() {
                   <tr key={user.id}>
                     <td>{user.fullName}</td>
                     <td>{user.loginName}</td>
+                    <td>{user.email ?? "—"}</td>
                     <td>{formatRole(user.role)}</td>
                     <td>
                       <span className={user.isActive ? "badge badge-completed" : "badge badge-not-started"}>
@@ -128,6 +130,9 @@ export default function UsersPage() {
                     </td>
                     <td>
                       <div className="form-actions">
+                        <Link href={`/users/${user.id}/edit`} className="btn btn-secondary btn-small">
+                          Edit
+                        </Link>
                         <Link href={`/users/${user.id}/reset-password`} className="btn btn-secondary btn-small">
                           Reset password
                         </Link>
