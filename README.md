@@ -28,6 +28,7 @@ has been implemented. Don't add any of those without the customer's answer.
 ## Where to go next
 
 - **Installing and running this**: [`RUNBOOK.md`](./RUNBOOK.md) — start here if you're setting this up for the first time.
+- **Hosting it somewhere other than your own machine**, while staying off the public internet: [`docs/HOSTING.md`](./docs/HOSTING.md).
 - **The application's API surface** (Server Actions, not REST): [`docs/API_CONTRACT.md`](./docs/API_CONTRACT.md).
 - **How Phase 1 was built** (directory layout, the alert engine's algorithm, the original implementation contract): [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). Written before implementation; a few details (mainly: a `listUsers`/`getUser` query got added that wasn't originally planned, see the API contract) drifted slightly during integration — the API contract doc reflects the code as it actually is today.
 - **Database schema**: [`prisma/schema.prisma`](./prisma/schema.prisma) — heavily commented, including the reasoning behind every field.
