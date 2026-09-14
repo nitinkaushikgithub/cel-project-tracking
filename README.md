@@ -19,7 +19,7 @@ Built in three phases:
 |---|---|---|
 | **1** | UI + backend integration — auth, users/roles, projects/activities CRUD, the alert engine, beacon popup + alert history + dismissals, dashboard/RAG, audit log | **Done**, verified end-to-end against a real database (see [Verification](#verification) below) |
 | **2** | Deployment hardening — backup script, restore procedure, administrator guide, resolving the TLS question (CLAUDE.md §9.10) | Not started |
-| **3** | Email integration — real Nodemailer/SMTP sending (`src/lib/email.ts` currently just logs) | Not started |
+| **3** | Email integration — real Nodemailer/SMTP sending, matching the popup 1:1 (every alert rule, not just overdue ones) | **Done**, verified with a real end-to-end SMTP send. Needs real SMTP credentials in `.env` to actually deliver (see `RUNBOOK.md`) — without them the app still runs fine, it just logs instead. |
 
 Nothing from CLAUDE.md §9 (open customer questions — PO/sales fields,
 P/R-series form split, HOD workflow, risk register, escalation matrix, etc.)
@@ -68,9 +68,14 @@ any cloud service.
   alert points landing today, writes an `Alert` row *before* attempting to
   send anything (the write is what makes it idempotent — a unique constraint
   on `(activityId, rule, scheduledFor)` means a restart or retry can never
-  raise or email the same alert twice), then calls the (currently stubbed)
-  email sender. An `OVERDUE` alert also fires for anything past its end date
-  that isn't `COMPLETED`.
+  raise or email the same alert twice), then emails everyone the alert is
+  relevant to: the activity's assignee, the project's manager, and every
+  admin — each only if they have an email on file, deduplicated. Email
+  content matches the popup, with full activity detail in the body (the
+  link inside only resolves on the CEL network, so the body never relies on
+  it). Needs `SMTP_HOST` etc. set in `.env` to actually deliver — see
+  `RUNBOOK.md`. An `OVERDUE` alert also fires for anything past its end
+  date that isn't `COMPLETED`.
 - **Beacon popup** — pops up on any screen, for any logged-in user, when an
   alert exists that they haven't dismissed yet. Dismissing it is per-user
   (`AlertDismissal`), so one person closing it doesn't hide it from anyone
@@ -100,6 +105,11 @@ password hashes to the browser if left as originally written, a missing
 "create project" entry point, and a client-side session-hook bug that
 incorrectly blocked real admins from a form the server correctly knew they
 were allowed to use. See the git log for the full detail on each.
+
+Phase 3 (email) was verified the same way, not just compiled: a real
+end-to-end send via a live SMTP test service against real recipient data
+from the demo database (assignee/manager/admin resolution, deduplication,
+and `Alert.emailSentAt` only getting set after a real successful send).
 
 **Not yet verified**: the Docker Compose path itself (image build, Caddy,
 `docker-entrypoint.sh`) — Docker was not available in the environment this

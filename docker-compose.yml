@@ -15,6 +15,18 @@ services:
       # fixed yet (CLAUDE.md §9.10 — DNS name still open). Without this,
       # Auth.js v5 rejects requests whose Host header it doesn't recognize.
       AUTH_TRUST_HOST: "true"
+      # Phase 3 — email alerts (CLAUDE.md §8.2: "SMTP server details and
+      # credentials... without this the email alerts cannot be sent").
+      # Leaving SMTP_HOST unset in .env is fine — the app runs and Alert
+      # rows still get created, sending just logs instead. See
+      # src/lib/email.ts and .env.example.
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_SECURE: ${SMTP_SECURE}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      APP_BASE_URL: ${APP_BASE_URL}
     depends_on:
       postgres:
         condition: service_healthy

@@ -218,9 +218,28 @@ they're the core logic everything above wraps or depends on.
   first** (relying on the `(activityId, rule, scheduledFor)` unique
   constraint — a `P2002` means "already raised, skip"), and only after a
   successful insert calls `sendAlertEmail()`. This ordering is load-bearing:
-  never call the email step before the insert succeeds.
+  never call the email step before the insert succeeds. A failed send is
+  caught and logged here, not rethrown — one bad email must not stop the
+  rest of the batch's `Alert` rows from being written.
 - **`computeProjectRag(activities): "RED" | "AMBER" | "GREEN"`** — pure.
   Red beats Amber beats Green.
+
+### `sendAlertEmail(alert): Promise<void>` (`src/lib/email.ts`)
+
+Not a Server Action either — called only from `runHourlyAlertCheck` above.
+Recipients: the activity's assignee, the project's manager, and every
+active admin — each included only if `User.email` is set, deduplicated.
+Sends one email (not one per recipient) via Nodemailer over
+`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`. If
+`SMTP_HOST` isn't set, or there are zero recipients with an email on file,
+logs and returns without sending — this is a normal, non-error path (e.g.
+every environment before SMTP credentials exist). Sets `Alert.emailSentAt`
+only after a real send succeeds; never faked. Body is plain text with full
+activity detail (name, project, assignee, manager, dates, status, target,
+actual, and delay-record fields when present) — CLAUDE.md hard constraint
+#2: the link included at the bottom (only when `APP_BASE_URL` is set)
+resolves only on the CEL network, so the body itself must never depend on
+it.
 
 ---
 

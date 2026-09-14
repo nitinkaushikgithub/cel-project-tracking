@@ -142,8 +142,13 @@ export async function recomputeAlerts(activityId: string): Promise<void> {
 
 // --- 5.4 the hourly job -------------------------------------------------------
 
+// project.manager is included so sendAlertEmail (Phase 3) can resolve the
+// PM's email without a second query — this is server-only data (the
+// hourly job never runs in a browser context), so including full User
+// records here (passwordHash and all) is fine; contrast with the client-
+// facing queries in src/app/*/queries.ts, which must never do this.
 type ActivityWithRelations = Prisma.ActivityGetPayload<{
-  include: { project: true; assignedTo: true };
+  include: { project: { include: { manager: true } }; assignedTo: true };
 }>;
 
 async function raiseAlertIfNew(
@@ -171,7 +176,16 @@ async function raiseAlertIfNew(
     throw err;
   }
 
-  await sendAlertEmail({ ...created, activity });
+  // A bad send (SMTP down, misconfigured, etc.) must not stop the rest of
+  // this run's activities from getting their Alert rows written — the row
+  // (the load-bearing part) already succeeded above. Email is best-effort
+  // on top of it: log and move on, leave Alert.emailSentAt null so it's
+  // visible in alert history that the email side didn't go out.
+  try {
+    await sendAlertEmail({ ...created, activity });
+  } catch (err) {
+    console.error(`[alerts] sendAlertEmail failed for alert ${created.id}:`, err);
+  }
 }
 
 export async function runHourlyAlertCheck(): Promise<void> {
@@ -179,7 +193,7 @@ export async function runHourlyAlertCheck(): Promise<void> {
 
   const activities = await prisma.activity.findMany({
     where: { status: { not: "COMPLETED" } },
-    include: { project: true, assignedTo: true },
+    include: { project: { include: { manager: true } }, assignedTo: true },
   });
 
   for (const activity of activities) {

@@ -71,6 +71,17 @@ Leave `AUTH_TRUST_HOST=true` as-is — needed because this runs behind
 Caddy's reverse proxy on an internal hostname that isn't fixed yet
 (CLAUDE.md §9.10 is still open on what that hostname will be).
 
+**Optional but recommended — SMTP, for real alert emails**: leave
+`SMTP_HOST` blank for a first run (the app works fine without it — alerts
+still get raised and shown in the app, they just don't get emailed, and
+that's logged so you can tell). To actually receive alert emails, set
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` to
+CEL's real SMTP server details (CLAUDE.md §8.2 lists this as something
+CEL needs to provide), and `APP_BASE_URL` to whatever internal URL this
+ends up running at (used only to build the link inside alert emails — the
+email body always has full detail regardless, since that link only
+resolves on the CEL network).
+
 ## 4. First run
 
 ```
@@ -170,8 +181,12 @@ docker compose up -d         # same, but detached (runs in the background)
   release periodically.
 - Full current package versions: `package.json` (and the committed
   `package-lock.json` for exact resolved versions).
-- **Email isn't sent yet** — `src/lib/email.ts` logs what it would send.
-  That's Phase 3 (CLAUDE.md build-order step 6), not built.
+- **Email alerts are live** (Phase 3, CLAUDE.md build-order step 6) —
+  every alert that raises the beacon popup also emails the activity's
+  assignee, the project's manager, and every admin, each only if they have
+  an email on file (deduplicated). Needs `SMTP_*` set in `.env` to actually
+  send — see step 3. Without it, `src/lib/email.ts` just logs, so nothing
+  breaks; `Alert.emailSentAt` stays `null` until a real send succeeds.
 - **No backup/restore script yet** — that's Phase 2. Right now, the only
   durable data is the `postgres_data` Docker volume; back that up however
   you'd back up any Postgres data directory until a real script exists.
