@@ -1,84 +1,153 @@
 # Install runbook
 
-Written as the system is built (CLAUDE.md §10 convention), not at the end.
+Everything you need to install and run this from scratch, written for
+someone with no prior context on the project. Read `README.md` first if you
+want to know *what* this is before *how to run it*.
 
-**Status: Phase 1 complete and verified end-to-end.** CLAUDE.md §8
-build-order steps 2–5, 7, 8: auth, users/roles, projects/activities CRUD,
-the alert engine, the beacon popup/history/dismissals, the dashboard/RAG
-rollup, and the audit log. Alert emails are stubbed (logged, not sent) —
-see `src/lib/email.ts`; that's Phase 3, per the user's own phasing.
-Deployment hardening (backup script, TLS decision) is Phase 2.
+## 1. Prerequisites
 
-This was built by a 4-agent team against a written architecture contract,
-then integrated and verified by hand against a real (temporary, local)
-Postgres 16 instance and a real running server — not just code review:
-`npm install`, `prisma generate`, `tsc --noEmit`, and `next build` all
-pass clean, the initial migration below was actually generated and
-applied, the seed ran, a real login (bcrypt + JWT) succeeded over HTTP,
-every screen rendered against live data, the RAG rollup computed
-correctly against real dates, and the alert engine was proven to raise
-alerts (including OVERDUE) exactly once each even when run twice — the
-idempotency the unique constraint is supposed to guarantee, confirmed
-against a real constraint violation, not just in theory.
+- **Docker** with Compose v2 (`docker compose`, not the older
+  `docker-compose`). That's the only thing you need installed — Node,
+  Postgres, etc. all run inside containers.
+- Network access to pull `node:20-alpine`, `postgres:16-alpine`, and
+  `caddy:2-alpine` the first time.
 
-## Prerequisites
+## 2. Get the code
 
-- Docker with Compose v2 (`docker compose`, not `docker-compose`).
-- A `.env` file in the project root — copy `.env.example` and set real
-  values (`POSTGRES_PASSWORD`, and `AUTH_SECRET` — generate with
-  `openssl rand -base64 32`, the app won't start without it).
+```
+git clone <this repo's URL>
+cd cel-project-tracking
+```
 
-## Running the stack
+## 3. Configure environment
+
+```
+cp .env.example .env
+```
+
+Then edit `.env` and set two things for real (everything else in the
+example file is fine as-is for a first run):
+
+- **`POSTGRES_PASSWORD`** — any real password. Also update the matching
+  password inside `DATABASE_URL` in the same file if you change it (they
+  must match).
+- **`AUTH_SECRET`** — the app **will not start** without this (Auth.js v5
+  signs sessions with it). Generate a real one:
+  ```
+  openssl rand -base64 32
+  ```
+  (No `openssl`? `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+  works too, or any other way to get 32 random bytes as base64.)
+
+Leave `AUTH_TRUST_HOST=true` as-is — needed because this runs behind
+Caddy's reverse proxy on an internal hostname that isn't fixed yet
+(CLAUDE.md §9.10 is still open on what that hostname will be).
+
+## 4. First run
 
 ```
 docker compose up
 ```
 
-Brings up `postgres`, `app`, and `caddy`. Caddy listens on port 80 and
-reverse-proxies to the app. The app itself is not published directly —
-only reachable through Caddy, on the internal network (CLAUDE.md §3.2).
-`docker-entrypoint.sh` applies `prisma/migrations/` (already generated and
-committed — see below) and reseeds (idempotent) on every start, so the
-app is demonstrable immediately: one admin user and the sample P101
-project with two activities, per CLAUDE.md §10.
+This builds the app image and starts three containers: `postgres`, `app`,
+`caddy`. On the app container's first start, `docker-entrypoint.sh`
+automatically:
 
-**Seeded admin login** — change the password after first login (there is
-no self-service reset; an admin resets it from `/users`, CLAUDE.md §3.1):
+1. Applies the committed migration (`prisma/migrations/20260914093431_init/`)
+   — no manual migration step needed, it's already generated and checked
+   into the repo.
+2. Runs the seed script (`prisma/seed.ts`) — creates one admin user and a
+   sample project so there's something to look at immediately. Safe to run
+   on every restart (it upserts, never duplicates).
+3. Starts the Next.js server.
+
+Wait for a line like `Ready` in the `app` container's logs, then open:
+
+**http://localhost** (port 80, via Caddy — not port 3000; the app container
+itself isn't published directly).
+
+## 5. Log in
 
 | Login name | Password |
 |---|---|
 | `admin` | `ChangeMe123!` |
 
-## The initial migration
+**Change this password immediately after first login** (`/users` →
+find `admin` → *Reset password*). There's no self-service reset by design
+(CLAUDE.md hard constraint #1) — only another admin can reset a password,
+so don't lock yourself out by forgetting the new one before creating a
+second admin account.
 
-`prisma/migrations/20260914093431_init/` is committed — generated and
-applied for real against a live Postgres 16 instance during Phase 1
-verification, not hand-written. Future schema changes: edit
-`prisma/schema.prisma`, then generate the next migration the same way
-(`npx prisma migrate dev --name <description>` with `DATABASE_URL`
-pointed at a reachable Postgres — `docker compose run --rm --entrypoint
-sh app -c "npx prisma migrate dev --name <description>"` works against
-the compose stack) and commit what it writes.
+## 6. Verify it's actually working
 
-## Known gaps at this stage
+A quick smoke test, in order:
 
-- **TLS is undecided.** Caddy currently serves plain HTTP. See the
-  comments in `Caddyfile` and `docker-compose.yml` — this is CLAUDE.md
-  §9.10 (open question 10), not a decision made here.
-- **Email isn't actually sent.** `src/lib/email.ts` logs what it would
-  send; `Alert.emailSentAt` stays `null`. Real Nodemailer/SMTP wiring is
-  Phase 3 (CLAUDE.md build-order step 6).
-- **No deployment hardening yet** — backup script, restore procedure,
-  administrator guide (CLAUDE.md §8.3 / build-order step 8's remaining
-  half). That's Phase 2.
-- **`next-auth` is pinned to a beta version** (`5.0.0-beta.32`) — that's
-  correctly the current state of the actual package (Auth.js v5 is still
-  beta upstream as of this writing), not a placeholder, but it's worth
-  checking for a stable release before going to production.
-- Verification above ran on Node 22 against a temporary local Postgres 16
-  instance and `next start` directly (not through Docker/Caddy — Docker
-  wasn't available in the environment this was built in). The Docker
-  Compose path itself (image build, Caddy proxying, container networking,
-  `docker-entrypoint.sh`'s migrate+seed+start sequence) has not yet been
-  run end-to-end and should be the first thing verified in an environment
-  that has Docker.
+1. Dashboard loads and shows one project (**P101**), coloured amber or
+   green depending on today's date relative to its sample activities.
+2. `/users` (visible in the header nav, admin only) lists the seeded admin.
+3. Create a second user, log out, log in as them — confirm the role-based
+   nav differences (a Member shouldn't see *Users* or *Alert rules* in the
+   header).
+4. From the dashboard, **+ New project** → create one → **Add activity** on
+   it → the activity form should show a live "alert schedule" preview as
+   you pick dates, before you save.
+5. `/admin/alert-rules` (admin only) lists seven threshold rows across the
+   three duration classes.
+6. Bell icon → **alert history** — empty on a fresh install; it fills in as
+   the hourly job (see below) actually raises alerts over time.
+
+If all six work, the install is good.
+
+## 7. Stopping / restarting
+
+```
+docker compose down          # stop, keep the database volume
+docker compose down -v       # stop AND delete the database volume (data loss)
+docker compose up            # start again — migrations/seed re-run automatically, harmlessly
+docker compose up -d         # same, but detached (runs in the background)
+```
+
+## 8. Making a schema change later
+
+1. Edit `prisma/schema.prisma`.
+2. Generate the migration against a reachable Postgres:
+   ```
+   docker compose up -d postgres
+   docker compose run --rm --entrypoint sh app -c "npx prisma migrate dev --name <short-description>"
+   ```
+3. Commit what that writes to `prisma/migrations/`.
+4. Next `docker compose up` applies it automatically via
+   `docker-entrypoint.sh` — no separate deploy step.
+
+## 9. Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| App container exits immediately, log mentions `AUTH_SECRET` | You skipped step 3 — it's not optional. |
+| `docker compose up` can't reach `localhost` | You're probably going to `localhost:3000` — that's not published. Use plain `http://localhost` (port 80, through Caddy). |
+| Login fails with a valid-looking password | Someone reset it since install — there's no way to recover a forgotten password except another admin resetting it from `/users`. If *no* admin account works, you'll need to reset the database (`docker compose down -v && docker compose up`, which reseeds the default admin — **this deletes all other data too**, so only do it on a throwaway/dev instance). |
+| Alerts never seem to appear | The hourly job runs at the top of every hour (`0 * * * *`), not immediately on activity creation — it can take up to an hour after a date first crosses a threshold. This is by design, not a bug (CLAUDE.md §5). |
+| `npx prisma migrate dev` complains about a deprecated `package.json#prisma` config | Expected, harmless — Prisma is deliberately pinned to the 6.x line here (see below); this warning is Prisma nagging about its own future v7 change, not something to fix. |
+
+## 10. Notes for whoever maintains this
+
+- **Prisma is pinned to 6.19.3, not the "latest" tag.** Prisma 7 removed
+  schema-file `datasource { url }` entirely in favor of a `prisma.config.ts`
+  + driver-adapter rewrite. That's a real architectural change this app
+  deliberately isn't adopting yet — don't `npm update` Prisma past 6.x
+  without doing that migration deliberately, on purpose, with time set
+  aside for it.
+- **`next-auth` is pinned to a beta** (`5.0.0-beta.32`) because Auth.js v5
+  genuinely is still beta upstream — not a placeholder. Check for a stable
+  release periodically.
+- Full current package versions: `package.json` (and the committed
+  `package-lock.json` for exact resolved versions).
+- **Email isn't sent yet** — `src/lib/email.ts` logs what it would send.
+  That's Phase 3 (CLAUDE.md build-order step 6), not built.
+- **No backup/restore script yet** — that's Phase 2. Right now, the only
+  durable data is the `postgres_data` Docker volume; back that up however
+  you'd back up any Postgres data directory until a real script exists.
+- **TLS is unresolved** (CLAUDE.md §9.10) — Caddy currently serves plain
+  HTTP. See the comments in `Caddyfile` and `docker-compose.yml`.
+- See `docs/API_CONTRACT.md` for every server action/query in the app, and
+  `docs/ARCHITECTURE.md` for how Phase 1 was originally planned and built.
