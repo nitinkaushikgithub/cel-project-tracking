@@ -6,6 +6,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { Activity, Project } from "@prisma/client";
+import { auth } from "@/lib/auth";
 import { listProjectsForDashboard } from "@/app/projects/queries";
 import { computeProjectRag } from "@/lib/alerts";
 import { RagBadge, RAG_COLORS, type RagState } from "@/components/RagBadge";
@@ -19,6 +20,10 @@ const PROJECT_TYPE_LABELS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
+  const session = await auth();
+  const canCreateProject =
+    session?.user.role === "ADMIN" || session?.user.role === "PROJECT_MANAGER";
+
   const projects: ProjectWithActivities[] = await listProjectsForDashboard();
 
   const rows = projects.map((project) => ({
@@ -33,8 +38,23 @@ export default async function DashboardPage() {
 
   return (
     <main style={{ padding: 16, maxWidth: 960, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: 4 }}>Dashboard</h1>
-      <p style={{ marginTop: 0, color: "#555" }}>{rows.length} project{rows.length === 1 ? "" : "s"}</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ marginBottom: 4 }}>Dashboard</h1>
+          <p style={{ marginTop: 0, color: "#555" }}>{rows.length} project{rows.length === 1 ? "" : "s"}</p>
+        </div>
+        {/* Integration fix: this route existed and worked, but nothing in
+            the UI linked to it — CLAUDE.md source doc §3.2 requires
+            project creation to be reachable ("A project is created with a
+            code, a name, a type and a project manager"). Role-gated to
+            match ARCHITECTURE.md §3's role matrix (admin, PM — never
+            Member). */}
+        {canCreateProject ? (
+          <Link href="/projects/new" className="btn btn-primary">
+            + New project
+          </Link>
+        ) : null}
+      </div>
 
       <div style={countsRowStyle}>
         <CountTile label="Red" count={counts.RED} state="RED" />

@@ -14,3 +14,11 @@ out/
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+
+# sandbox-only local test tooling (no Docker available in some
+# environments) — never part of the app or its deployment. See
+# RUNBOOK.md / memory for how these get regenerated when needed.
+.pgdata/
+scripts/dev-pg.cjs
+.cookies*.txt
+.dash*.html
